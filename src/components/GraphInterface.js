@@ -132,12 +132,19 @@ const GraphInterface = () => {
       else diffResult = step.prevValue - lambdaI;
 
       const diffValue = `${prevValueDisplay} - ${formattedLambdaI} = ${diffResult}`;
-      const valueUpdate = step.isUpdated ? `${formattedLambdaI} + ${weight} = ${newValueDisplay}` : prevValueDisplay;
+      const valueUpdate = `${formattedLambdaI} + ${weight} = ${newValueDisplay}`;
 
       return { i, j, diffValue, weight, newValue: valueUpdate, isUpdated: step.isUpdated };
     });
 
-    setCalculationSteps(allCalculationSteps);
+    // Trier les étapes par i puis par j
+    const sortedSteps = allCalculationSteps.sort((a, b) => {
+      if (a.i === b.i) return a.j - b.j;
+      return a.i - b.i;
+    });
+
+    setCalculationSteps(sortedSteps);
+
     setCurrentStepTable(-1);
     setCurrentColumn(0);
 
@@ -453,27 +460,25 @@ ${pathResult.path.map(step => `x${step.from + 1} -> x${step.to + 1} (poids: ${st
                           <th className="py-4 px-6 text-left">j</th>
                           <th className="py-4 px-6 text-left">λ<sub>j</sub> - λ<sub>i</sub></th>
                           <th className="py-4 px-6 text-left">v(x<sub>i</sub>, x<sub>j</sub>)</th>
-                          <th className="py-4 px-6 text-left rounded-r-lg">λ<sub>j</sub> = λ<sub>i</sub> + v(x<sub>i</sub>, x<sub>j</sub>)</th>
+                          <th className="py-4 px-6 text-left rounded-r-lg">λ<sub>j</sub> = λ<sub>i</sub> + v(x<sub>i</sub>, x<sub>j</sub>)</th>  
                         </tr>
                       </thead>
                       <tbody>
                         {calculationSteps
-                          .filter(step => step.isUpdated)
                           .slice(0, currentStepTable + 1)
-                          .sort((a, b) => a.i - b.i)
                           .map((step, index) => (
                             <tr key={index} className="border-b border-gray-100 hover:bg-gradient-to-r hover:from-emerald-50 hover:to-teal-50 transition-all duration-200">
                               <td className="py-4 px-6 font-medium text-slate-800">
                                 {currentStepTable > index || currentColumn > 0 ? (
                                   <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg flex items-center justify-center">
-                                    <span className="text-white font-bold text-sm">{step.i}</span>
+                                    <span className="text-white font-bold text-sm">x{step.i}</span>
                                   </div>
                                 ) : ''}
                               </td>
                               <td className="py-4 px-6 font-medium text-slate-800">
                                 {currentStepTable > index || currentColumn > 1 ? (
                                   <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                                    <span className="text-white font-bold text-sm">{step.j}</span>
+                                    <span className="text-white font-bold text-sm">x{step.j}</span>
                                   </div>
                                 ) : ''}
                               </td>

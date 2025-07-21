@@ -11,6 +11,10 @@ const GraphVisualization = ({ vertices, edges, path, pathType, onEdgeUpdate, onE
   const [circles, setCircles] = useState(null);
   const [labels, setLabels] = useState(null);
   const [svg, setSvg] = useState(null);
+  // Ajouter un nouveau state pour stocker les positions sauvegardées
+  const [savedPositions, setSavedPositions] = useState({});
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [nodes, setNodes] = useState([]);
 
   // Déplacer createArcPath au niveau du composant
   const createArcPath = (d) => {
@@ -27,10 +31,10 @@ const GraphVisualization = ({ vertices, edges, path, pathType, onEdgeUpdate, onE
     const midY = (d.source.y + d.target.y) / 2;
     const perpX = -dy / distance;
     const perpY = dx / distance;
-    const offsetDistance = Math.min(distance * 0.2, 40);
+    const offsetDistance = Math.min(distance * 0.3, 60);
     const controlX = midX + perpX * curve * offsetDistance;
     const controlY = midY + perpY * curve * offsetDistance;
-    return `M ${d.source.x} ${d.source.y} Q ${controlX} ${controlY} ${d.target.x}`;
+    return `M ${d.source.x} ${d.source.y} Q ${controlX} ${controlY} ${d.target.x} ${d.target.y}`;
   };
 
   // Déplacer getTextPosition au niveau du composant
@@ -52,13 +56,18 @@ const GraphVisualization = ({ vertices, edges, path, pathType, onEdgeUpdate, onE
       const midY = (d.source.y + d.target.y) / 2;
       const perpX = -dy / distance;
       const perpY = dx / distance;
-      const offsetDistance = Math.min(distance * 0.2, 40);
+      const offsetMultiplier = d.isBidirectional ? 1.5 : 1;
+      const offsetDistance = Math.min(distance * 0.2 * offsetMultiplier, 40 * offsetMultiplier);
       const controlX = midX + perpX * d.curve * offsetDistance;
       const controlY = midY + perpY * d.curve * offsetDistance;
       const t = 0.5;
       const x = (1 - t) * (1 - t) * d.source.x + 2 * (1 - t) * t * controlX + t * t * d.target.x;
       const y = (1 - t) * (1 - t) * d.source.y + 2 * (1 - t) * t * controlY + t * t * d.target.y;
-      return { x, y };
+      const textOffset = d.isBidirectional ? 20 : 12;
+    return { 
+      x: x + (perpX * textOffset * Math.sign(d.curve)),
+      y: y + (perpY * textOffset * Math.sign(d.curve))
+    };
     }
   };
 
@@ -154,12 +163,14 @@ const GraphVisualization = ({ vertices, edges, path, pathType, onEdgeUpdate, onE
       updatePositions();
     }
   
+    // Modifier la fonction dragended pour marquer les changements non sauvegardés
     function dragended(event) {
       if (!event.active) simulation.alphaTarget(0);
       const node = event.subject;
       node.x = node.fx;
       node.y = node.fy;
       node.fixed = true;
+      setHasUnsavedChanges(true); // Indiquer qu'il y a des changements non sauvegardés
     }
   
     return d3.drag()
@@ -191,6 +202,20 @@ const GraphVisualization = ({ vertices, edges, path, pathType, onEdgeUpdate, onE
     }, 700);
   };
 
+  // Ajouter une fonction pour sauvegarder les positions
+  const savePositions = () => {
+    const positions = {};
+    nodes.forEach(node => {
+      positions[node.id] = {
+        x: node.x,
+        y: node.y
+      };
+    });
+    setSavedPositions(positions);
+    setHasUnsavedChanges(false);
+  };
+
+  // Modifier renderGraph pour utiliser les positions sauvegardées
   const renderGraph = () => {
     if (!edges.length || !svgRef.current) return;
 
@@ -213,6 +238,7 @@ const GraphVisualization = ({ vertices, edges, path, pathType, onEdgeUpdate, onE
     setSvg(svg);
 
     const nodes = Array.from({ length: vertices }, (_, i) => ({ id: i }));
+    setNodes(nodes); // Store nodes in state
 
     const baseNodePositions = {
       0: { x: 70, y: 250 }, 1: { x: 200, y: 250 }, 2: { x: 300, y: 350 },
@@ -235,7 +261,14 @@ const GraphVisualization = ({ vertices, edges, path, pathType, onEdgeUpdate, onE
     });
 
     nodes.forEach(node => {
-      if (nodePositions[node.id]) {
+      if (savedPositions[node.id]) {
+        // Utiliser les positions sauvegardées si elles existent
+        node.x = savedPositions[node.id].x;
+        node.y = savedPositions[node.id].y;
+        node.fx = node.x;
+        node.fy = node.y;
+      } else if (nodePositions[node.id]) {
+        // Sinon utiliser les positions par défaut
         node.x = nodePositions[node.id].x;
         node.y = nodePositions[node.id].y;
         node.fx = node.x;
@@ -260,9 +293,11 @@ const GraphVisualization = ({ vertices, edges, path, pathType, onEdgeUpdate, onE
       );
       if (reverseArc) {
         const isFirstArc = arcs.indexOf(arc) < arcs.indexOf(reverseArc);
-        arc.curve = isFirstArc ? -0.15 : 0.15;
+        arc.curve = isFirstArc ? -0.5 : 0.5;
+        arc.isBidirectional = true;
       } else {
         arc.curve = 0;
+        arc.isBidirectional = false;
       }
     });
 
@@ -403,17 +438,30 @@ const GraphVisualization = ({ vertices, edges, path, pathType, onEdgeUpdate, onE
     return () => window.removeEventListener('resize', handleResize);
   }, [vertices, edges, path, pathType, currentStep]); // currentStep pour animation
 
+  // Modifier le rendu JSX pour ajouter le bouton de sauvegarde
   return (
     <div className="border rounded p-4 bg-white w-full overflow-hidden">
-      <h2 className="font-bold mb-2">Visualisation du Graphe :</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="font-bold">Visualisation du Graphe :</h2>
+        {hasUnsavedChanges && (
+          <button
+            onClick={savePositions}
+            className="px-4 py-2 rounded bg-blue-500 text-white hover:bg-blue-600 transition-colors duration-200"
+          >
+            Sauvegarder les positions
+          </button>
+        )}
+      </div>
       <div className="w-full overflow-auto">
         <svg ref={svgRef} className="w-full" style={{ minHeight: '400px', maxHeight: '80vh' }}></svg>
       </div>
-      <div className="flex justify-center mt-4">
+      <div className="flex justify-center mt-4 space-x-4">
         <button
           onClick={startAnimation}
           disabled={isPlaying || !path || !path.path || path.path.length === 0}
-          className={`px-4 py-2 rounded bg-green-500 text-white hover:bg-green-600 ${isPlaying ? 'opacity-50 cursor-not-allowed' : ''}`}
+          className={`px-4 py-2 rounded bg-green-500 text-white hover:bg-green-600 ${
+            isPlaying ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
         >
           {isPlaying ? "Animation en cours..." : "Démarrer l'animation"}
         </button>

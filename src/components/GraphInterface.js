@@ -248,7 +248,7 @@ ${pathResult.path.map(step => `x${step.from + 1} -> x${step.to + 1} (poids: ${st
             <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
               <TargetIcon />
             </div>
-            <h1 className="text-4xl font-bold tracking-tight">Recherche de Chemins Optimaux</h1>
+            <h1 className="text-4xl font-bold tracking-tight">FORD</h1>
           </div>
 
           {/* Panneau de contrôle principal */}
